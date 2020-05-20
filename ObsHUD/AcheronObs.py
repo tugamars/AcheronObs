@@ -234,9 +234,9 @@ def start(ENABLE,POST):
         pv_player.append(getplayer(player8))
         pv_player.append(getplayer(player9))
         pv_player.append(getplayer(player0))
-        getTime()
-        getScore(teamleftScore)
-        getScore(teamrightScore)
+        roundtimer = getTime()
+        scoreLeft = getScore(teamleftScore)
+        scoreRight = getScore(teamrightScore)
 
         if POST == True:
             with requests.get('http://localhost:7000/api/123') as api:
@@ -251,6 +251,9 @@ def start(ENABLE,POST):
                 data["team2"]["players"][2]["hp"] = str(pv_player[7])
                 data["team2"]["players"][3]["hp"] = str(pv_player[8])
                 data["team2"]["players"][4]["hp"] = str(pv_player[9])
+                data["team1"]["roundscore"] = str(scoreLeft)
+                data["team2"]["roundscore"] = str(scoreRight)
+                data["roundtime"] = str(roundtimer)
 
                 #jsonData = json.dumps(data)
                 #print(jsonData)
@@ -259,4 +262,4 @@ def start(ENABLE,POST):
 
                 print("Status code: ", response.status_code)
 
-start(ENABLE=True,POST=False)
+start(ENABLE=True,POST=True)
