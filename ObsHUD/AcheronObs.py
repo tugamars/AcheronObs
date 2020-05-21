@@ -124,7 +124,7 @@ def grab_score(left):
 def getTime():
     frame = grab_time()
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-    custom_config = r'--oem 3 --psm 6'
+    custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789:.'
     roundtime = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
         print(roundtime)
@@ -134,7 +134,7 @@ def getTime():
 def getScore(teamscore):
     frame = grab_score(teamscore)
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-    custom_config = r'--oem 3 --psm 7'
+    custom_config = r'--oem 3 --psm 7 outputbase digits'
     score = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
         print(score)
@@ -237,6 +237,10 @@ def start(ENABLE,POST):
         roundtimer = getTime()
         scoreLeft = getScore(teamleftScore)
         scoreRight = getScore(teamrightScore)
+        # FIX FOR THE SHITTY HUD RITO PLEASE FIX QZDQZD
+        if scoreLeft + scoreRight >= 12:
+            scoreLeft = getScore(teamrightScore)
+            scoreRight = getScore(teamleftScore)
 
         if POST == True:
             with requests.get('http://localhost:7000/api/123') as api:
