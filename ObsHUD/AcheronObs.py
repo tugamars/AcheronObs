@@ -124,6 +124,11 @@ def grab_score(left):
 def getTime():
     frame = grab_time()
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    frame = cv2.resize(frame, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_CUBIC)
+    kernel = np.ones((1, 1), np.uint8)
+    frame = cv2.dilate(frame, kernel, iterations=1)
+    frame = cv2.erode(frame, kernel, iterations=1)
+    frame = cv2.threshold(cv2.bilateralFilter(frame, 5, 75, 75), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789:.'
     roundtime = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
@@ -134,6 +139,11 @@ def getTime():
 def getScore(teamscore):
     frame = grab_score(teamscore)
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    frame = cv2.resize(frame, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_CUBIC)
+    kernel = np.ones((1, 1), np.uint8)
+    frame = cv2.dilate(frame, kernel, iterations=1)
+    frame = cv2.erode(frame, kernel, iterations=1)
+    frame = cv2.threshold(cv2.bilateralFilter(frame, 5, 75, 75), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     custom_config = r'--oem 3 --psm 7 outputbase digits'
     score = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
@@ -237,7 +247,7 @@ def start(ENABLE,POST):
         roundtimer = getTime()
         scoreLeft = getScore(teamleftScore)
         scoreRight = getScore(teamrightScore)
-        # FIX FOR THE SHITTY HUD RITO PLEASE FIX QZDQZD
+        # FIX FOR THE HUD RITO PLEASE FIX
         if scoreLeft + scoreRight >= 12:
             scoreLeft = getScore(teamrightScore)
             scoreRight = getScore(teamleftScore)
