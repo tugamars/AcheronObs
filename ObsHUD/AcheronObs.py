@@ -4,6 +4,7 @@ import win32gui, win32ui, win32con, win32api
 import mss
 import time
 import timeit
+import threading
 from collections import defaultdict 
 import sys
 import json
@@ -15,12 +16,7 @@ from pytesseract import Output
 
 # Globals
 health_percentage = 100
-healthbar_width = 360
-lowhealthContour = 0
-healthContour = 0
-CAP_WIDTH  = 46
-CAP_HEIGHT = 12
-maxvalue = 72
+maxvalue = 70
 # TEAM1 LEFT POSITION VALUES (1920*1080)
 player1 = 443
 player2 = 509
@@ -35,72 +31,73 @@ player9 = 1366
 player0 = 1432
 teamleftScore = 796
 teamrightScore = 1087
-
 pytesseract.pytesseract.tesseract_cmd = r'E:\Program Files\Tesseract-OCR\tesseract.exe'
 VERBOSE = False
-VERBOSETESSERACT = True
+VERBOSETESSERACT = False
 DISPLAY = False
-sct = mss.mss()
-Wd, Hd = sct.monitors[1]["width"], sct.monitors[1]["height"]
 
 
 def grab_screen(left):
-
-    width = CAP_WIDTH
-    height = CAP_HEIGHT
-    top = 73
-
-    hwin = win32gui.GetDesktopWindow()
-    hwindc = win32gui.GetWindowDC(hwin)
-    srcdc = win32ui.CreateDCFromHandle(hwindc)
-    memdc = srcdc.CreateCompatibleDC()
-    bmp = win32ui.CreateBitmap()
-    bmp.CreateCompatibleBitmap(srcdc, width, height)
-    memdc.SelectObject(bmp)
-    memdc.BitBlt((0, 0), (width, height), srcdc, (left, top), win32con.SRCCOPY)
-    
-    signedIntsArray = bmp.GetBitmapBits(True)
-    img = np.fromstring(signedIntsArray, dtype='uint8')
-    img.shape = (height,width,4)
-
-    srcdc.DeleteDC()
-    memdc.DeleteDC()
-    win32gui.ReleaseDC(hwin, hwindc)
-    win32gui.DeleteObject(bmp.GetHandle())
-
-    return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+    width  = 46
+    height = 12
+    startY = 73
+    endY = startY + height
+    startX = left
+    endX = left + width
+    camera_index = 0
+    e1 = cv2.getTickCount()
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    ret, frame = cap.read()
+    frame = frame[startY:endY,startX:endX]
+    e2 = cv2.getTickCount()
+    timec = (e2 - e1)/ cv2.getTickFrequency()
+    func_name = sys._getframe().f_code.co_name
+    print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
+    return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
 
 def grab_time():
-    left = 910
     width = 88
     height = 50
-    top = 25
-
-    hwin = win32gui.GetDesktopWindow()
-    hwindc = win32gui.GetWindowDC(hwin)
-    srcdc = win32ui.CreateDCFromHandle(hwindc)
-    memdc = srcdc.CreateCompatibleDC()
-    bmp = win32ui.CreateBitmap()
-    bmp.CreateCompatibleBitmap(srcdc, width, height)
-    memdc.SelectObject(bmp)
-    memdc.BitBlt((0, 0), (width, height), srcdc, (left, top), win32con.SRCCOPY)
+    startY = 25
+    left = 910
     
-    signedIntsArray = bmp.GetBitmapBits(True)
-    img = np.fromstring(signedIntsArray, dtype='uint8')
-    img.shape = (height,width,4)
+    endY = startY + height
+    startX = left
+    endX = left + width
 
-    srcdc.DeleteDC()
-    memdc.DeleteDC()
-    win32gui.ReleaseDC(hwin, hwindc)
-    win32gui.DeleteObject(bmp.GetHandle())
-
-    return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+    camera_index = 0
+    e1 = cv2.getTickCount()
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    ret, frame = cap.read()
+    frame = frame[startY:endY,startX:endX]
+    e2 = cv2.getTickCount()
+    timec = (e2 - e1)/ cv2.getTickFrequency()
+    func_name = sys._getframe().f_code.co_name
+    print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
+    
+    return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
 
 def grab_score(left):
     width = 46
     height = 43
-    top = 30
-
+    startY = 30
+    
+    endY = startY + height
+    startX = left
+    endX = left + width
+    e1 = cv2.getTickCount()
+    camera_index = 0
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    ret, frame = cap.read()
+    frame = frame[startY:endY,startX:endX]
+    
+    return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
     hwin = win32gui.GetDesktopWindow()
     hwindc = win32gui.GetWindowDC(hwin)
     srcdc = win32ui.CreateDCFromHandle(hwindc)
@@ -118,10 +115,15 @@ def grab_score(left):
     memdc.DeleteDC()
     win32gui.ReleaseDC(hwin, hwindc)
     win32gui.DeleteObject(bmp.GetHandle())
+    e2 = cv2.getTickCount()
+    timec = (e2 - e1)/ cv2.getTickFrequency()
+    func_name = sys._getframe().f_code.co_name
+    print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
 
     return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
 
 def getTime():
+    e1 = cv2.getTickCount()
     frame = grab_time()
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     frame = cv2.resize(frame, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_CUBIC)
@@ -133,25 +135,35 @@ def getTime():
     roundtime = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
         print(roundtime)
-
+    cv2.destroyAllWindows()
+    e2 = cv2.getTickCount()
+    timec = (e2 - e1)/ cv2.getTickFrequency()
+    func_name = sys._getframe().f_code.co_name
+    print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
     return roundtime
 
 def getScore(teamscore):
+    e1 = cv2.getTickCount()
     frame = grab_score(teamscore)
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     frame = cv2.resize(frame, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_CUBIC)
     kernel = np.ones((1, 1), np.uint8)
-    frame = cv2.dilate(frame, kernel, iterations=1)
-    frame = cv2.erode(frame, kernel, iterations=1)
-    frame = cv2.threshold(cv2.bilateralFilter(frame, 5, 75, 75), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    #frame = cv2.dilate(frame, kernel, iterations=1)
+    #frame = cv2.erode(frame, kernel, iterations=1)
+    #frame = cv2.threshold(cv2.bilateralFilter(frame, 5, 75, 75), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     custom_config = r'--oem 3 --psm 7 outputbase digits'
     score = pytesseract.image_to_string(frame, config=custom_config)
     if VERBOSETESSERACT == True:
         print(score)
-    
-    return score
+    cv2.destroyAllWindows()
+    e2 = cv2.getTickCount()
+    timec = (e2 - e1)/ cv2.getTickFrequency()
+    func_name = sys._getframe().f_code.co_name
+    print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
+    return int(score)
 
 def getplayer(player):
+        e1 = cv2.getTickCount()
         frame_ring_buffer = deque([], 3)
         screengrab = grab_screen(player)
         frame_ring_buffer.append(screengrab)
@@ -169,18 +181,21 @@ def getplayer(player):
             print(colored("WARNING: Frame buffer < 3", "yellow"))
             health_bar = frame1
 
-        health_bar = cv2.bilateralFilter(health_bar, 3, 2, 2)
+        #health_bar = cv2.bilateralFilter(health_bar, 3, 2, 2)
         
         # Masque blanc
         mask1 = cv2.inRange(health_bar, np.array([240, 240, 240]), np.array([255, 255, 255]))
 
         # Conversion bgr => hsv
         health_bar_hsv = cv2.cvtColor(health_bar, cv2.COLOR_BGR2HSV)
+        health_bar_hsv  = cv2.dilate(health_bar_hsv, None, iterations=1)
+        health_bar_hsv  = cv2.erode(health_bar_hsv, None, iterations=1)
 
-        lower_red1 = np.array([170, 200, 210]) # Oui je sais
-        upper_red1 = np.array([180, 210, 220]) # Oui je sais
-        lower_red2 = np.array([170, 200, 210]) # Oui je sais
-        upper_red2 = np.array([180, 210, 220]) # Oui je sais
+
+        lower_red1 = np.array([170, 110, 85])
+        upper_red1 = np.array([180, 255, 255])
+        lower_red2 = np.array([0, 110, 85])
+        upper_red2 = np.array([10, 255, 255])
 
         # Masques rouge
         mask2 = cv2.inRange(health_bar_hsv, lower_red1, upper_red1)
@@ -204,7 +219,7 @@ def getplayer(player):
 
         for lhbpixel in lhbpixels:
             if (foundpixels == False): 
-                    if lhbpixel[0] >= 245 and lhbpixel[1] >= 245 and lhbpixel[2] >= 245:
+                    if lhbpixel[0] >= 240 and lhbpixel[1] >= 240 and lhbpixel[2] >= 240:
                         pv += 1
 
         health_percent = pv/maxvalue * 100
@@ -220,7 +235,7 @@ def getplayer(player):
 
         health_percent = round(np.mean(health_percent_buffer))
         if VERBOSE == True:
-            print('Detected health :' + str(health_percent))
+            print('Detected health : ' + str(health_percent))
 
         if DISPLAY == True :
             health_bar = cv2.resize(health_bar, (460, 120))
@@ -228,11 +243,18 @@ def getplayer(player):
             hsvBar = cv2.resize(hsvBar, (460, 120))
             cv2.imshow(str(player + 1),hsvBar)
             cv2.waitKey(0)
-
+        cv2.destroyAllWindows()
+        e2 = cv2.getTickCount()
+        timec = (e2 - e1)/ cv2.getTickFrequency()
+        func_name = sys._getframe().f_code.co_name
+        print('Execution Time : ' + str(round(timec,2)) +" --- "+ str(func_name))
         return health_percent
 
 def start(ENABLE,POST):
+    useoptimized = cv2.useOptimized()
+    print (useoptimized)
     while ENABLE == True:
+        tic = time.perf_counter()
         pv_player = []
         pv_player.append(getplayer(player1))
         pv_player.append(getplayer(player2))
@@ -247,11 +269,13 @@ def start(ENABLE,POST):
         roundtimer = getTime()
         scoreLeft = getScore(teamleftScore)
         scoreRight = getScore(teamrightScore)
-        # FIX FOR THE HUD RITO PLEASE FIX
+
+        ## FIX FOR THE HUD RITO PLEASE FIX
         if scoreLeft + scoreRight >= 12:
             scoreLeft = getScore(teamrightScore)
             scoreRight = getScore(teamleftScore)
-
+        toc = time.perf_counter()
+        print(f"Total execution time : {toc - tic:0.4f} seconds")
         if POST == True:
             with requests.get('http://localhost:7000/api/123') as api:
                 data = api.json()
@@ -276,4 +300,4 @@ def start(ENABLE,POST):
 
                 print("Status code: ", response.status_code)
 
-start(ENABLE=True,POST=True)
+start(ENABLE=True,POST=False)
