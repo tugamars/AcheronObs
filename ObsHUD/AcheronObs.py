@@ -9,37 +9,38 @@ from collections import deque
 from termcolor import colored
 import pytesseract
 from pytesseract import Output
+from PySide2.QtGui import *
+from PySide2.QtWidgets import *
+from PySide2.QtCore import *
 
+with open('config.json') as config_file:
+    archconfig = json.load(config_file)
 # Globals
-health_percentage = 100
-maxvalue = 76
+health_percentage = archconfig['health_percentage']
+maxvalue = archconfig['maxvalue']
+pv_player = []
 pytesseract.pytesseract.tesseract_cmd = r'E:\Program Files\Tesseract-OCR\tesseract.exe'
-apiurl="http://localhost:7000/api/123"
-# TEAM1 LEFT POSITION VALUES (1920*1080)
-player1 = 443+3
-player2 = 509+3
-player3 = 575+3
-player4 = 641+3
-player5 = 707+3
-# TEAM2 LEFT POSITION VALUES (1920*1080)
-player6 = 1168+3
-player7 = 1234+3
-player8 = 1300+3
-player9 = 1366+3
-player0 = 1432+3
-teamleftScore = 796
-teamrightScore = 1087
-# SETTINGS
-ENABLEDETECTION=True
+apiurl = 'http://localhost:7000/api/123'
+camera_index = archconfig['camera_index']
+player1 = archconfig['player1']+3
+player2 = archconfig['player2']+3
+player3 = archconfig['player3']+3
+player4 = archconfig['player4']+3
+player5 = archconfig['player5']+3
+player6 = archconfig['player6']+3
+player7 = archconfig['player7']+3
+player8 = archconfig['player8']+3
+player9 = archconfig['player9']+3
+player0 = archconfig['player0']+3
+teamleftScore = archconfig['teamleftScore']
+teamrightScore = archconfig['teamrightScore']
+ENABLEDETECTION = True
 VERBOSE = False
-VERBOSETESSERACT = True
-DISPLAY = False
+VERBOSETESSERACT = False
 DISPLAYHEALTH = False
 DISPLAYSCORE = False
 DISPLAYROUNDTIME = False
-POST=False
-# Starting capture
-camera_index = 0
+POST = True
 
 try:
     cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
@@ -157,7 +158,6 @@ def getRoundTimer():
     roundtime = pytesseract.image_to_string(frame1, config=custom_config)
     if not roundtime:
         frame = cleanFrameRed(frame)
-        cv2.imshow("lol",frame)
         roundtime = pytesseract.image_to_string(frame, config=custom_config)
         if not roundtime:
             roundtime = "00:00"
@@ -165,13 +165,11 @@ def getRoundTimer():
     if VERBOSETESSERACT == True:
         print("Round time: " + str(roundtime))
 
-    cv2.imshow("lol2",frame1)
-    cv2.waitKey(0)
+    if DISPLAYROUNDTIME == True :
+        cv2.imshow(str("Round Time"),hsvBar)
+        cv2.waitKey(0)
 
     return roundtime
-
-    if POST == True:
-        postRoundTime(roundtime)
 
 def getScore(team):
     frame = grabTeamScore(team)
@@ -186,8 +184,9 @@ def getScore(team):
     if VERBOSETESSERACT == True:
         print("Score: " + str(score))
 
-    #cv2.imshow("lol5",frame)
-    #cv2.waitKey(0)
+    if DISPLAYSCORE == True :
+        cv2.imshow(str("Score"),hsvBar)
+        cv2.waitKey(0)
 
     return score
 
@@ -245,7 +244,7 @@ def getHealthBar(player):
         if VERBOSE == True:
             print('Detected health : ' + str(round(health_percent,-1)))
 
-        if DISPLAY == True :
+        if DISPLAYHEALTH == True :
             screengrab = cv2.resize(screengrab, (460, 120))
             cv2.imshow(str(player + 2),screengrab)
             health_bar = cv2.resize(health_bar, (460, 120))
@@ -262,10 +261,11 @@ def fixHalfTime(scoreLeft,scoreRight):
 
     return scoreLeft,scoreRight
 
-def postDetection(pv_player,scoreLeft,scoreRight):
+def postDetection(pv_player,scoreLeft,scoreRight,roundtime):
     try:
         with requests.get(apiurl) as api:
             data = api.json()
+            data["roundtime"] = str(roundtime)
             data["team1"]["players"][0]["hp"] = str(pv_player[0])
             data["team1"]["players"][1]["hp"] = str(pv_player[1])
             data["team1"]["players"][2]["hp"] = str(pv_player[2])
@@ -279,28 +279,15 @@ def postDetection(pv_player,scoreLeft,scoreRight):
             data["team1"]["roundscore"] = str(scoreLeft)
             data["team2"]["roundscore"] = str(scoreRight)
 
-            response = requests.post('http://localhost:7000/api/123', json=data)
-            toc2 = time.perf_counter()
-            print(f"Total execution time (with POST) : {toc2 - tic:0.4f} seconds")
+            response = requests.post(apiurl, json=data)
             print("Status code: ", response.status_code)
     except:
         print("API not responding (Error 3006)")
 
-def postRoundTime(roundtime):
-    try:
-        with requests.get(apiurl) as api:
-            data = api.json()
-            data["roundtime"] = str(roundtime)
-            response = requests.post('http://localhost:7000/api/123', json=data)
-            print("Status code: ", response.status_code)
-    except:
-        print("API not responding (Error 3006)")
-
-def startDetection(ENABLEDETECTION):
+def startDetection():
+    global pv_player
     while ENABLEDETECTION == True:
-        tic = time.perf_counter()
-        getRoundTimer()
-        pv_player = []
+        roundtime = getRoundTimer()
         pv_player.append(getHealthBar(player1))
         pv_player.append(getHealthBar(player2))
         pv_player.append(getHealthBar(player3))
@@ -317,9 +304,115 @@ def startDetection(ENABLEDETECTION):
         ## FIX FOR THE HUD RITO PLEASE FIX
         fixHalfTime(scoreLeft,scoreRight)
 
-        toc1 = time.perf_counter()
-        print(f"Total execution time : {toc1 - tic:0.4f} seconds")
         if POST == True:
-            postDetection(pv_player,scoreLeft,scoreRight)
+            postDetection(pv_player,scoreLeft,scoreRight,roundtime)
+        pv_player = []
 
-startDetection(ENABLEDETECTION=True)
+class Worker(QRunnable):
+    @Slot()
+    def run(self):
+        startDetection()
+
+class Widget(QWidget):
+    def __init__(self):
+        self.threadpool = QThreadPool()
+        QWidget.__init__(self)
+        
+        self.logo = QPixmap('acheronlogo.png')
+        self.enablepost = QPushButton("Enable POST")
+        self.quit = QPushButton("Quit")
+        self.startdetection = QPushButton("Start Detection")
+        self.enabledetection = QPushButton("Stop Detection")
+        self.label = QLabel()
+        self.label.setPixmap(self.logo)
+        self.edit_apiurl = QLineEdit("http://localhost:7000/api/123")
+        self.button_apiurl = QPushButton("Set API Url")
+        self.right = QVBoxLayout()
+        self.right.setMargin(10)
+
+        #RIGHT
+        self.right.addWidget(self.label)
+        self.right.addWidget(self.edit_apiurl)
+        self.right.addWidget(self.button_apiurl)
+        self.right.addWidget(self.enablepost)
+        self.right.addWidget(self.enabledetection)
+        self.right.addWidget(self.startdetection)
+        self.right.addWidget(self.quit)
+
+        self.layout = QHBoxLayout()
+
+        #LEFT
+        #...
+
+        self.layout.addLayout(self.right)
+
+        self.setLayout(self.layout)
+
+        #Connect Actions
+        self.quit.clicked.connect(self.quit_application)
+        self.startdetection.clicked.connect(self.startdetect)
+        self.enablepost.clicked.connect(self.enablePost)
+        self.enabledetection.clicked.connect(self.enableDetection)
+        self.button_apiurl.clicked.connect(self.defineApiUrl)
+
+    @Slot()
+    def quit_application(self):
+        QApplication.quit()
+
+    def startdetect(self):
+        worker = Worker()
+        self.threadpool.start(worker)
+        self.logo = QPixmap('acheronlogo_red.png')
+        self.label.setPixmap(self.logo)
+
+    def defineApiUrl(self):
+        global apiurl
+        apiurl = self.edit_apiurl.text()
+        print(apiurl)
+
+    def enablePost(self):
+        global POST
+        if POST == False:
+            POST = True
+
+    def enableDetection(self):
+        global ENABLEDETECTION
+        if ENABLEDETECTION == True:
+            ENABLEDETECTION = False
+        time.sleep(1)
+        ENABLEDETECTION = True
+        self.logo = QPixmap('acheronlogo.png')
+        self.label.setPixmap(self.logo)
+
+class MainWindow(QMainWindow):
+    def __init__(self, widget):
+        QMainWindow.__init__(self)
+        self.setWindowTitle("Acheron Conduit")
+        self.icon = QIcon("icon.png")
+        self.setWindowIcon(self.icon)
+        # Menu
+        self.menu = self.menuBar()
+        self.file_menu = self.menu.addMenu("File")
+
+        # Exit QAction
+        exit_action = QAction("Exit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.exit_app)
+
+        self.file_menu.addAction(exit_action)
+        self.setCentralWidget(widget)
+
+    @Slot()
+    def exit_app(self, checked):
+        QApplication.quit()
+
+if __name__ == '__main__':
+    # Qt Application
+    app = QApplication([])
+    widget = Widget()
+    window = MainWindow(widget)
+    window.resize(300, 300)
+    window.show()
+
+    # Execute application
+    sys.exit(app.exec_())
