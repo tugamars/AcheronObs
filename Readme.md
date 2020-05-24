@@ -5,7 +5,7 @@ It is using computer vision to gather information on the game (hp of the players
 
 
 ## Example
-![Screenshot](overlay_screenshot.png "Screenshot")
+![Screenshot](screenshot.JPG "Screenshot")
 
 ## Running Acheron
 - python AcheronObs.py
