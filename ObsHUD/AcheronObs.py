@@ -19,8 +19,10 @@ with open('config.json') as config_file:
 health_percentage = archconfig['health_percentage']
 maxvalue = archconfig['maxvalue']
 pv_player = []
+team1side = "defense"
+team2side = "attack"
 pytesseract.pytesseract.tesseract_cmd = r'E:\Program Files\Tesseract-OCR\tesseract.exe'
-apiurl = 'http://localhost:7000/api/123'
+apiurl = 'http://localhost/api/123'
 camera_index = archconfig['camera_index']
 player1 = archconfig['player1']+3
 player2 = archconfig['player2']+3
@@ -160,7 +162,7 @@ def getRoundTimer():
         frame = cleanFrameRed(frame)
         roundtime = pytesseract.image_to_string(frame, config=custom_config)
         if not roundtime:
-            roundtime = "00:00"
+            roundtime = "SPIKE PLANTED"
 
     if VERBOSETESSERACT == True:
         print("Round time: " + str(roundtime))
@@ -261,11 +263,20 @@ def fixHalfTime(scoreLeft,scoreRight):
 
     return scoreLeft,scoreRight
 
-def postDetection(pv_player,scoreLeft,scoreRight,roundtime):
+def getSide(scoreLeft,scoreRight):
+    global team1side, team2side
+    if int(scoreLeft) + int(scoreRight) >= 12:
+        team1side = "attack"
+        team2side = "defense"
+    else:
+        team1side = "defense"
+        team2side = "attack"
+    return team1side,team2side
+
+def postHealthDetection(pv_player):
     try:
         with requests.get(apiurl) as api:
             data = api.json()
-            data["roundtime"] = str(roundtime)
             data["team1"]["players"][0]["hp"] = str(pv_player[0])
             data["team1"]["players"][1]["hp"] = str(pv_player[1])
             data["team1"]["players"][2]["hp"] = str(pv_player[2])
@@ -276,18 +287,48 @@ def postDetection(pv_player,scoreLeft,scoreRight,roundtime):
             data["team2"]["players"][2]["hp"] = str(pv_player[7])
             data["team2"]["players"][3]["hp"] = str(pv_player[8])
             data["team2"]["players"][4]["hp"] = str(pv_player[9])
-            data["team1"]["roundscore"] = str(scoreLeft)
-            data["team2"]["roundscore"] = str(scoreRight)
 
             response = requests.post(apiurl, json=data)
             print("Status code: ", response.status_code)
     except:
-        print("API not responding (Error 3006)")
+        print("API not responding (Error 3006) [Health Detection Thread]")
 
-def startDetection():
+def postTextDetection(scoreLeft,scoreRight,roundtime,team1side,team2side):
+    try:
+        with requests.get(apiurl) as api:
+            data = api.json()
+            data["roundtime"] = str(roundtime)
+            data["team1"]["roundscore"] = str(scoreLeft)
+            data["team2"]["roundscore"] = str(scoreRight)
+            data["team1"]["side"] = team1side
+            data["team2"]["side"] = team2side
+
+            response = requests.post(apiurl, json=data)
+            print("Status code: ", response.status_code)
+    except:
+        print("API not responding (Error 3006) [Text Detection Thread]")
+
+def textDetection():
+    while ENABLEDETECTION == True:
+        tic = time.perf_counter()
+
+        roundtime = getRoundTimer()
+        scoreLeft = getScore(teamleftScore)
+        scoreRight = getScore(teamrightScore)
+        getSide(scoreLeft,scoreRight)
+
+        toc = time.perf_counter()
+        print(f"Text Detection done in : {toc - tic:0.4f} seconds")
+
+        if POST == True:
+            postTextDetection(scoreLeft,scoreRight,roundtime,team1side,team2side)
+
+def healthDetection():
+    
     global pv_player
     while ENABLEDETECTION == True:
-        roundtime = getRoundTimer()
+        tic = time.perf_counter()
+
         pv_player.append(getHealthBar(player1))
         pv_player.append(getHealthBar(player2))
         pv_player.append(getHealthBar(player3))
@@ -298,20 +339,23 @@ def startDetection():
         pv_player.append(getHealthBar(player8))
         pv_player.append(getHealthBar(player9))
         pv_player.append(getHealthBar(player0))
-        scoreLeft = getScore(teamleftScore)
-        scoreRight = getScore(teamrightScore)
 
-        ## FIX FOR THE HUD RITO PLEASE FIX
-        fixHalfTime(scoreLeft,scoreRight)
+        toc = time.perf_counter()
+        print(f"Health Detection done in : {toc - tic:0.4f} seconds")
 
         if POST == True:
-            postDetection(pv_player,scoreLeft,scoreRight,roundtime)
+            postHealthDetection(pv_player)
         pv_player = []
-
-class Worker(QRunnable):
+    
+class healthWorker(QRunnable):
     @Slot()
     def run(self):
-        startDetection()
+        healthDetection()
+
+class textWorker(QRunnable):
+    @Slot()
+    def run(self):
+        textDetection()
 
 class Widget(QWidget):
     def __init__(self):
@@ -325,7 +369,7 @@ class Widget(QWidget):
         self.enabledetection = QPushButton("Stop Detection")
         self.label = QLabel()
         self.label.setPixmap(self.logo)
-        self.edit_apiurl = QLineEdit("http://localhost:7000/api/123")
+        self.edit_apiurl = QLineEdit("http://localhost/api/123")
         self.button_apiurl = QPushButton("Set API Url")
         self.right = QVBoxLayout()
         self.right.setMargin(10)
@@ -360,8 +404,10 @@ class Widget(QWidget):
         QApplication.quit()
 
     def startdetect(self):
-        worker = Worker()
-        self.threadpool.start(worker)
+        textworker = textWorker()
+        healthworker = healthWorker()
+        self.threadpool.start(healthworker)
+        self.threadpool.start(textworker)
         self.logo = QPixmap('acheronlogo_red.png')
         self.label.setPixmap(self.logo)
 
