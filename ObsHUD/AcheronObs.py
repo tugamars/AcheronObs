@@ -12,6 +12,7 @@ from pytesseract import Output
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
+from matplotlib import pyplot as plt
 
 with open('config.json') as config_file:
     archconfig = json.load(config_file)
@@ -19,10 +20,11 @@ with open('config.json') as config_file:
 health_percentage = archconfig['health_percentage']
 maxvalue = archconfig['maxvalue']
 pv_player = []
+ultimate_status = []
 team1side = "defense"
 team2side = "attack"
 pytesseract.pytesseract.tesseract_cmd = r'E:\Program Files\Tesseract-OCR\tesseract.exe'
-apiurl = 'http://localhost/api/123'
+apiurl = 'http://ec2-52-47-204-107.eu-west-3.compute.amazonaws.com:6543/api/123'
 camera_index = archconfig['camera_index']
 player1 = archconfig['player1']+3
 player2 = archconfig['player2']+3
@@ -44,6 +46,9 @@ DISPLAYSCORE = False
 DISPLAYROUNDTIME = False
 POST = True
 
+template = cv2.imread('spiketemplate.png', cv2.IMREAD_UNCHANGED)
+template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+
 try:
     cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
@@ -53,12 +58,12 @@ except:
 
 def cleanFrameRed(frame):
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-    frame = cv2.resize(frame, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-    #frame = cv2.medianBlur(frame,5)
-    frame = cv2.threshold(frame, 50, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    kernel = np.ones((3,3),np.uint8)
-    frame = cv2.dilate(frame, kernel, iterations = 1)
-    frame = cv2.erode(frame, kernel, iterations = 1)
+    frame = cv2.resize(frame, None, fx=5, fy=5, interpolation=cv2.INTER_CUBIC)
+    frame = cv2.medianBlur(frame,5)
+    frame = cv2.threshold(frame, 15, 255, cv2.THRESH_BINARY)[1]
+    kernel = np.ones((5,5),np.uint8)
+    frame = cv2.dilate(frame, kernel, iterations = 2)
+    frame = cv2.erode(frame, kernel, iterations = 2)
     frame = cv2.morphologyEx(frame, cv2.MORPH_OPEN, kernel)
     #frame = cv2.Canny(frame, 100, 200)
 
@@ -66,11 +71,11 @@ def cleanFrameRed(frame):
 
 def cleanFrameWhite(frame):
     frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-    frame = cv2.resize(frame, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-    #frame = cv2.medianBlur(frame,5)
-    frame = cv2.threshold(frame, 255, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    kernel = np.ones((2,2),np.uint8)
-    frame = cv2.dilate(frame, kernel, iterations = 1)
+    frame = cv2.resize(frame, None, fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
+    frame = cv2.medianBlur(frame,5)
+    frame = cv2.threshold(frame, 200, 255, cv2.THRESH_BINARY)[1]
+    kernel = np.ones((4,4),np.uint8)
+    frame = cv2.dilate(frame, kernel, iterations = 2)
     frame = cv2.erode(frame, kernel, iterations = 1)
     frame = cv2.morphologyEx(frame, cv2.MORPH_CLOSE, kernel)
     #frame = cv2.Canny(frame, 100, 200)
@@ -103,11 +108,38 @@ def grabHealthBar(left):
 
     return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
 
+def grabUltimateBar(left):
+    width  = 40
+    height = 6
+    startY = 20
+    endY = startY + height
+    startX = left
+    endX = left + width
+
+    ret, frame = cap.read()
+    frame = frame[startY:endY,startX:endX]
+
+    return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
+
 def grabRoundTimer():
     width = 90
     height = 60
     startY = 20
     left = 920
+    endY = startY + height
+    startX = left
+    endX = left + width
+
+    ret, frame = cap.read()
+    frame = frame[startY:endY,startX:endX]
+    
+    return cv2.cvtColor(frame, cv2.COLOR_BGRA2RGB)
+
+def grabSpikeStatus():
+    width = 89
+    height = 80
+    startY = 15
+    left = 916
     endY = startY + height
     startX = left
     endX = left + width
@@ -152,15 +184,17 @@ def getBuffer(healthbar):
 
     return health_bar
 
-def getRoundTimer():
+def oldgetRoundTimer():
     frame = grabRoundTimer()
-    frame1 = cleanFrameWhite(frame)
+    framecleanwhite = cleanFrameWhite(frame)
+    framecleanred = cleanFrameRed(frame)
 
-    custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789:.'
-    roundtime = pytesseract.image_to_string(frame1, config=custom_config)
+    custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789:." '
+    roundtime = pytesseract.image_to_string(framecleanwhite, config=custom_config)
+    print("Round time framecleanwhite : " + str(roundtime))
     if not roundtime:
-        frame = cleanFrameRed(frame)
-        roundtime = pytesseract.image_to_string(frame, config=custom_config)
+        roundtime = pytesseract.image_to_string(framecleanred, config=custom_config)
+        print("Round time framecleanred : " + str(roundtime))
         if not roundtime:
             roundtime = "SPIKE PLANTED"
 
@@ -168,10 +202,29 @@ def getRoundTimer():
         print("Round time: " + str(roundtime))
 
     if DISPLAYROUNDTIME == True :
-        cv2.imshow(str("Round Time"),hsvBar)
+        cv2.imshow(str("Round Time"),framecleanwhite)
+        cv2.imshow(str("Round Time 2"),framecleanred)
         cv2.waitKey(0)
 
     return roundtime
+
+def getSpikeStatus():
+    image = grabSpikeStatus()
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    w, h = template.shape[::-1]
+    method = cv2.TM_CCOEFF_NORMED
+    res = cv2.matchTemplate(image, template, method)
+    _, max_val, _, max_loc = cv2.minMaxLoc(res)
+    top_left = max_loc
+    bottom_right = (top_left[0] + w, top_left[1] + h)
+    max_val_ncc = '{:.3f}'.format(max_val)
+    #print("correlation match score: " + max_val_ncc)
+    Flag = False
+    if float(max_val_ncc) > 0.6:
+        Flag = True
+
+    return Flag
 
 def getScore(team):
     frame = grabTeamScore(team)
@@ -187,7 +240,7 @@ def getScore(team):
         print("Score: " + str(score))
 
     if DISPLAYSCORE == True :
-        cv2.imshow(str("Score"),hsvBar)
+        cv2.imshow(str("Score"),frame)
         cv2.waitKey(0)
 
     return score
@@ -257,6 +310,29 @@ def getHealthBar(player):
 
         return health_percent
 
+def getUltimateStatus(playerultimate):
+    ultimateBar = grabUltimateBar(playerultimate)
+    ultimate_Bar = getBuffer(ultimateBar)
+    ultimate_Bar = cv2.cvtColor(ultimate_Bar, cv2.COLOR_BGR2GRAY)
+
+    ultpixels = ultimate_Bar.reshape(-1,1)
+    pv = 0
+    ultimatestatus = False
+
+    for ultpixel in ultpixels:
+        if ultpixel[0] >= 90:
+           pv += 1
+           if pv >= 20:
+            ultimatestatus = True
+            
+    if DISPLAYSCORE == True :
+        dim = (400, 60)
+        ultimate_Bar = cv2.resize(ultimate_Bar, dim, interpolation = cv2.INTER_AREA)
+        cv2.imshow(str("Ultimate"),ultimate_Bar)
+        cv2.waitKey(0)
+
+    return ultimatestatus
+
 def fixHalfTime(scoreLeft,scoreRight):
     if int(scoreLeft) + int(scoreRight) >= 12:
         scoreLeft, scoreRight = scoreRight, scoreLeft
@@ -293,11 +369,11 @@ def postHealthDetection(pv_player):
     except:
         print("API not responding (Error 3006) [Health Detection Thread]")
 
-def postTextDetection(scoreLeft,scoreRight,roundtime,team1side,team2side):
+def postTextDetection(scoreLeft,scoreRight,spikeStatus,team1side,team2side):
     try:
         with requests.get(apiurl) as api:
             data = api.json()
-            data["roundtime"] = str(roundtime)
+            data["roundtime"] = str(spikeStatus)
             data["team1"]["roundscore"] = str(scoreLeft)
             data["team2"]["roundscore"] = str(scoreRight)
             data["team1"]["side"] = team1side
@@ -308,27 +384,45 @@ def postTextDetection(scoreLeft,scoreRight,roundtime,team1side,team2side):
     except:
         print("API not responding (Error 3006) [Text Detection Thread]")
 
+def postUltimateDetection(ultimate_status):
+    try:
+        with requests.get(apiurl) as api:
+            data = api.json()
+            data["team1"]["players"][0]["ult"] = str(ultimate_status[0])
+            data["team1"]["players"][1]["ult"] = str(ultimate_status[1])
+            data["team1"]["players"][2]["ult"] = str(ultimate_status[2])
+            data["team1"]["players"][3]["ult"] = str(ultimate_status[3])
+            data["team1"]["players"][4]["ult"] = str(ultimate_status[4])
+            data["team2"]["players"][0]["ult"] = str(ultimate_status[5])
+            data["team2"]["players"][1]["ult"] = str(ultimate_status[6])
+            data["team2"]["players"][2]["ult"] = str(ultimate_status[7])
+            data["team2"]["players"][3]["ult"] = str(ultimate_status[8])
+            data["team2"]["players"][4]["ult"] = str(ultimate_status[9])
+
+            response = requests.post(apiurl, json=data)
+            print("Status code: ", response.status_code)
+    except:
+        print("API not responding (Error 3006) [Ultimate Detection Thread]")
+
 def textDetection():
     while ENABLEDETECTION == True:
         tic = time.perf_counter()
 
-        roundtime = getRoundTimer()
+        spikeStatus = getSpikeStatus()
         scoreLeft = getScore(teamleftScore)
         scoreRight = getScore(teamrightScore)
         getSide(scoreLeft,scoreRight)
 
         toc = time.perf_counter()
-        print(f"Text Detection done in : {toc - tic:0.4f} seconds")
+        #print(f"Text Detection done in : {toc - tic:0.4f} seconds")
 
         if POST == True:
-            postTextDetection(scoreLeft,scoreRight,roundtime,team1side,team2side)
+            postTextDetection(scoreLeft,scoreRight,spikeStatus,team1side,team2side)
 
 def healthDetection():
-    
+
     global pv_player
     while ENABLEDETECTION == True:
-        tic = time.perf_counter()
-
         pv_player.append(getHealthBar(player1))
         pv_player.append(getHealthBar(player2))
         pv_player.append(getHealthBar(player3))
@@ -340,13 +434,35 @@ def healthDetection():
         pv_player.append(getHealthBar(player9))
         pv_player.append(getHealthBar(player0))
 
-        toc = time.perf_counter()
-        print(f"Health Detection done in : {toc - tic:0.4f} seconds")
-
         if POST == True:
             postHealthDetection(pv_player)
+        # Reseting list to avoid memory leak
         pv_player = []
-    
+
+def ultimateDetection():
+    global ultimate_status
+    while ENABLEDETECTION == True:
+        tic = time.perf_counter()
+
+        ultimate_status.append(getUltimateStatus(player1))
+        ultimate_status.append(getUltimateStatus(player2))
+        ultimate_status.append(getUltimateStatus(player3))
+        ultimate_status.append(getUltimateStatus(player4))
+        ultimate_status.append(getUltimateStatus(player5))
+        ultimate_status.append(getUltimateStatus(player6))
+        ultimate_status.append(getUltimateStatus(player7))
+        ultimate_status.append(getUltimateStatus(player8))
+        ultimate_status.append(getUltimateStatus(player9))
+        ultimate_status.append(getUltimateStatus(player0))
+
+        toc = time.perf_counter()
+        #print(f"Ultimate Detection done in : {toc - tic:0.4f} seconds")
+
+        if POST == True:
+            postUltimateDetection(ultimate_status)
+        # Reseting list to avoid memory leak
+        ultimate_status = []
+
 class healthWorker(QRunnable):
     @Slot()
     def run(self):
@@ -356,6 +472,11 @@ class textWorker(QRunnable):
     @Slot()
     def run(self):
         textDetection()
+
+class ultimateWorker(QRunnable):
+    @Slot()
+    def run(self):
+        ultimateDetection()
 
 class Widget(QWidget):
     def __init__(self):
@@ -406,8 +527,10 @@ class Widget(QWidget):
     def startdetect(self):
         textworker = textWorker()
         healthworker = healthWorker()
+        ultworker = ultimateWorker()
         self.threadpool.start(healthworker)
         self.threadpool.start(textworker)
+        self.threadpool.start(ultworker)
         self.logo = QPixmap('acheronlogo_red.png')
         self.label.setPixmap(self.logo)
 
