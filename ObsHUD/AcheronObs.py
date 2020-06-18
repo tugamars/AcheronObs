@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import time
-from collections import defaultdict 
 import sys
 import json
 import requests
@@ -12,7 +11,6 @@ from pytesseract import Output
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
-from matplotlib import pyplot as plt
 
 with open('config.json') as config_file:
     archconfig = json.load(config_file)
@@ -24,7 +22,7 @@ ultimate_status = []
 team1side = "defense"
 team2side = "attack"
 pytesseract.pytesseract.tesseract_cmd = r'E:\Program Files\Tesseract-OCR\tesseract.exe'
-apiurl = 'http://ec2-52-47-204-107.eu-west-3.compute.amazonaws.com:6543/api/123'
+apiurl = 'http://localhost:6543/api/123'
 camera_index = archconfig['camera_index']
 player1 = archconfig['player1']+3
 player2 = archconfig['player2']+3
@@ -216,10 +214,7 @@ def getSpikeStatus():
     method = cv2.TM_CCOEFF_NORMED
     res = cv2.matchTemplate(image, template, method)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
-    top_left = max_loc
-    bottom_right = (top_left[0] + w, top_left[1] + h)
     max_val_ncc = '{:.3f}'.format(max_val)
-    #print("correlation match score: " + max_val_ncc)
     Flag = False
     if float(max_val_ncc) > 0.6:
         Flag = True
@@ -246,69 +241,69 @@ def getScore(team):
     return score
 
 def getHealthBar(player):
-        healthBar = grabHealthBar(player)
-        health_bar = getBuffer(healthBar)
+    healthBar = grabHealthBar(player)
+    health_bar = getBuffer(healthBar)
 
-        # Masque blanc
-        mask1 = cv2.inRange(health_bar, np.array([240, 240, 240]), np.array([255, 255, 255]))
+    # Masque blanc
+    mask1 = cv2.inRange(health_bar, np.array([240, 240, 240]), np.array([255, 255, 255]))
 
-        # Conversion bgr => hsv
-        health_bar_hsv = cv2.cvtColor(health_bar, cv2.COLOR_BGR2HSV)
+    # Conversion bgr => hsv
+    health_bar_hsv = cv2.cvtColor(health_bar, cv2.COLOR_BGR2HSV)
 
-        lower_red1 = np.array([170, 110, 85])
-        upper_red1 = np.array([180, 255, 255])
-        lower_red2 = np.array([0, 110, 85])
-        upper_red2 = np.array([20, 255, 255])
+    lower_red1 = np.array([170, 110, 85])
+    upper_red1 = np.array([180, 255, 255])
+    lower_red2 = np.array([0, 110, 85])
+    upper_red2 = np.array([20, 255, 255])
 
-        # Masques rouge
-        mask2 = cv2.inRange(health_bar_hsv, lower_red1, upper_red1)
-        mask3 = cv2.inRange(health_bar_hsv, lower_red2, upper_red2)
+    # Masques rouge
+    mask2 = cv2.inRange(health_bar_hsv, lower_red1, upper_red1)
+    mask3 = cv2.inRange(health_bar_hsv, lower_red2, upper_red2)
 
-        # Je cherche sur mon masque et par sur mon image parce que ça marche bien
-        hsvBar = cv2.bitwise_or(mask2, mask3)
+    # Je cherche sur mon masque et par sur mon image parce que ça marche bien
+    hsvBar = cv2.bitwise_or(mask2, mask3)
 
-        health_bar = cv2.bitwise_and(health_bar, health_bar, mask = mask1)
-        health_bar = cv2.cvtColor(health_bar, cv2.COLOR_BGR2GRAY)
-        hbpixels = health_bar.reshape(-1,1)
-        lhbpixels = hsvBar.reshape(-1,1)
-        pv = 0
-        foundpixels = False
+    health_bar = cv2.bitwise_and(health_bar, health_bar, mask = mask1)
+    health_bar = cv2.cvtColor(health_bar, cv2.COLOR_BGR2GRAY)
+    hbpixels = health_bar.reshape(-1,1)
+    lhbpixels = hsvBar.reshape(-1,1)
+    pv = 0
+    foundpixels = False
 
-        for hbpixel in hbpixels:
-            if hbpixel[0] >= 240:
-               pv += 1
-               foundpixels = True
+    for hbpixel in hbpixels:
+        if hbpixel[0] >= 240:
+           pv += 1
+           foundpixels = True
 
-        for lhbpixel in lhbpixels:
-            if (foundpixels == False): 
-                    if lhbpixel[0] >= 240:
-                        pv += 1
-        health_percent = pv/maxvalue * 100
-        if (health_percent > 100):
-            health_percent = 100
+    for lhbpixel in lhbpixels:
+        if (foundpixels == False): 
+                if lhbpixel[0] >= 240:
+                    pv += 1
+    health_percent = pv/maxvalue * 100
+    if (health_percent > 100):
+        health_percent = 100
 
-        # Buffer de 3 mesures
-        health_percent_buffer = deque([], 3)
+    # Buffer de 3 mesures
+    health_percent_buffer = deque([], 3)
 
-        health_percent_buffer.append(health_percent)
-        health_percent_buffer.append(health_percent)
-        health_percent_buffer.append(health_percent)
+    health_percent_buffer.append(health_percent)
+    health_percent_buffer.append(health_percent)
+    health_percent_buffer.append(health_percent)
 
-        health_percent = round(np.mean(health_percent_buffer))
+    health_percent = round(np.mean(health_percent_buffer))
 
-        if VERBOSE == True:
-            print('Detected health : ' + str(round(health_percent,-1)))
+    if VERBOSE == True:
+        print('Detected health : ' + str(round(health_percent,-1)))
 
-        if DISPLAYHEALTH == True :
-            screengrab = cv2.resize(screengrab, (460, 120))
-            cv2.imshow(str(player + 2),screengrab)
-            health_bar = cv2.resize(health_bar, (460, 120))
-            cv2.imshow(str(player),health_bar)
-            hsvBar = cv2.resize(hsvBar, (460, 120))
-            cv2.imshow(str(player + 1),hsvBar)
-            cv2.waitKey(0)
+    if DISPLAYHEALTH == True :
+        screengrab = cv2.resize(screengrab, (460, 120))
+        cv2.imshow(str(player + 2),screengrab)
+        health_bar = cv2.resize(health_bar, (460, 120))
+        cv2.imshow(str(player),health_bar)
+        hsvBar = cv2.resize(hsvBar, (460, 120))
+        cv2.imshow(str(player + 1),hsvBar)
+        cv2.waitKey(0)
 
-        return health_percent
+    return health_percent
 
 def getUltimateStatus(playerultimate):
     ultimateBar = grabUltimateBar(playerultimate)
@@ -406,15 +401,11 @@ def postUltimateDetection(ultimate_status):
 
 def textDetection():
     while ENABLEDETECTION == True:
-        tic = time.perf_counter()
 
         spikeStatus = getSpikeStatus()
         scoreLeft = getScore(teamleftScore)
         scoreRight = getScore(teamrightScore)
         getSide(scoreLeft,scoreRight)
-
-        toc = time.perf_counter()
-        #print(f"Text Detection done in : {toc - tic:0.4f} seconds")
 
         if POST == True:
             postTextDetection(scoreLeft,scoreRight,spikeStatus,team1side,team2side)
@@ -442,7 +433,6 @@ def healthDetection():
 def ultimateDetection():
     global ultimate_status
     while ENABLEDETECTION == True:
-        tic = time.perf_counter()
 
         ultimate_status.append(getUltimateStatus(player1))
         ultimate_status.append(getUltimateStatus(player2))
@@ -454,9 +444,6 @@ def ultimateDetection():
         ultimate_status.append(getUltimateStatus(player8))
         ultimate_status.append(getUltimateStatus(player9))
         ultimate_status.append(getUltimateStatus(player0))
-
-        toc = time.perf_counter()
-        #print(f"Ultimate Detection done in : {toc - tic:0.4f} seconds")
 
         if POST == True:
             postUltimateDetection(ultimate_status)
