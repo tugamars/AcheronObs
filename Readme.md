@@ -8,7 +8,7 @@ It is using computer vision to gather information on the game (hp of the players
 Only a bandaid until Riot releases a better way to do this (local telemetry data, game API, spectator API...)
 
 ## Example
-![Screenshot](screenshot.JPG "Screenshot")
+![Screenshot](2.JPG "Screenshot")
 
 ## Running Acheron
 - python AcheronObs.py
