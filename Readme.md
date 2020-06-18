@@ -12,5 +12,10 @@ Only a bandaid until Riot releases a better way to do this (local telemetry data
 
 ## Running Acheron
 - python AcheronObs.py
+- java -jar acheron_overlay.jar
 
-You need to create a 'config.json' file.
+You need to create a 'config.json' file, see acheron.py to see what's needed.
+
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=XYYFJQKB5JGHJ&source=url)
+
+Thanks for supporting !
